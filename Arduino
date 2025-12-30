@@ -1,1 +1,89 @@
+#include <ArduinoBLE.h>
+
+// UUID of the custom BLE service
+const char* SERVICE_UUID = "19B10000-E8F2-537E-4F6C-D104768A1214";
+
+// UUID of the BLE characteristic used to control the LED
+const char* CHARACTERISTIC_UUID = "19B10001-E8F2-537E-4F6C-D104768A1214";
+
+// Create a BLE service
+BLEService ledService(SERVICE_UUID);
+
+// Create a BLE characteristic (1 byte, readable and writable)
+BLEByteCharacteristic switchCharacteristic(
+  CHARACTERISTIC_UUID,
+  BLERead | BLEWrite
+);
+
+// Built-in LED pin on Arduino R4
+const int ledPin = LED_BUILTIN;
+
+void setup() {
+  // Start serial communication for debugging
+  Serial.begin(9600);
+  while (!Serial);
+
+  // Set LED pin as output
+  pinMode(ledPin, OUTPUT);
+
+  // Initialize BLE module
+  if (!BLE.begin()) {
+    Serial.println("Error: BLE initialization failed!");
+    while (1);
+  }
+
+  // Set the BLE device name
+  BLE.setLocalName("InzynierLED");
+
+  // Advertise the LED service
+  BLE.setAdvertisedService(ledService);
+
+  // Add characteristic to the service
+  ledService.addCharacteristic(switchCharacteristic);
+
+  // Add service to BLE stack
+  BLE.addService(ledService);
+
+  // Set initial value of the characteristic (LED OFF)
+  switchCharacteristic.writeValue(0);
+
+  // Start advertising
+  BLE.advertise();
+
+  Serial.println("Arduino R4 ready. Waiting for BLE connection...");
+}
+
+void loop() {
+  // Listen for incoming BLE central connections
+  BLEDevice central = BLE.central();
+
+  if (central) {
+    Serial.print("Connected to central: ");
+    Serial.println(central.address());
+
+    // While the device is connected
+    while (central.connected()) {
+
+      // Check if the characteristic was written by the central
+      if (switchCharacteristic.written()) {
+
+        // Read the received value (0 or 1)
+        byte value = switchCharacteristic.value();
+
+        if (value) {
+          // Turn LED ON
+          Serial.println("Command received: TURN ON");
+          digitalWrite(ledPin, HIGH);
+        } else {
+          // Turn LED OFF
+          Serial.println("Command received: TURN OFF");
+          digitalWrite(ledPin, LOW);
+        }
+      }
+    }
+
+    Serial.print("Disconnected from central: ");
+    Serial.println(central.address());
+  }
+}
 

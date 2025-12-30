@@ -1,0 +1,114 @@
+import Foundation
+import CoreBluetooth
+import Combine
+
+// Class responsible for BLE communication with Arduino
+class BluetoothManager: NSObject,
+                        ObservableObject,
+                        CBCentralManagerDelegate,
+                        CBPeripheralDelegate {
+
+    // Connection state published to the UI
+    @Published var isConnected = false
+    @Published var connectionStatus = "Disconnected"
+
+    // CoreBluetooth objects
+    private var centralManager: CBCentralManager!
+    private var arduinoPeripheral: CBPeripheral?
+    private var ledCharacteristic: CBCharacteristic?
+
+    // BLE UUIDs (must match Arduino)
+    let SERVICE_UUID = CBUUID(string: "19B10000-E8F2-537E-4F6C-D104768A1214")
+    let CHARACTERISTIC_UUID = CBUUID(string: "19B10001-E8F2-537E-4F6C-D104768A1214")
+
+    override init() {
+        super.init()
+        // Initialize BLE central manager
+        centralManager = CBCentralManager(delegate: self, queue: nil)
+    }
+
+    // Called when Bluetooth state changes
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        if central.state == .poweredOn {
+            connectionStatus = "Scanning..."
+            // Scan for peripherals advertising the LED service
+            centralManager.scanForPeripherals(
+                withServices: [SERVICE_UUID],
+                options: nil
+            )
+        } else {
+            connectionStatus = "Bluetooth not available"
+        }
+    }
+
+    // Called when a BLE device is found
+    func centralManager(
+        _ central: CBCentralManager,
+        didDiscover peripheral: CBPeripheral,
+        advertisementData: [String : Any],
+        rssi RSSI: NSNumber
+    ) {
+        arduinoPeripheral = peripheral
+        arduinoPeripheral?.delegate = self
+
+        // Stop scanning and connect to Arduino
+        centralManager.stopScan()
+        centralManager.connect(arduinoPeripheral!, options: nil)
+
+        connectionStatus = "Connecting..."
+    }
+
+    // Called when connection succeeds
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        isConnected = true
+        connectionStatus = "Connected to Arduino"
+        
+        // Discover services
+        peripheral.discoverServices([SERVICE_UUID])
+    }
+
+    // Called when services are discovered
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        if let services = peripheral.services {
+            for service in services {
+                // Discover LED characteristic
+                peripheral.discoverCharacteristics(
+                    [CHARACTERISTIC_UUID],
+                    for: service
+                )
+            }
+        }
+    }
+
+    // Called when characteristics are discovered
+    func peripheral(
+        _ peripheral: CBPeripheral,
+        didDiscoverCharacteristicsFor service: CBService,
+        error: Error?
+    ) {
+        if let characteristics = service.characteristics {
+            for characteristic in characteristics {
+                if characteristic.uuid == CHARACTERISTIC_UUID {
+                    // Save reference to LED characteristic
+                    ledCharacteristic = characteristic
+                }
+            }
+        }
+    }
+
+    // Send LED ON/OFF command to Arduino
+    func sendData(isOn: Bool) {
+        guard let characteristic = ledCharacteristic,
+              let peripheral = arduinoPeripheral else { return }
+
+        // Arduino expects 1 byte: 1 = ON, 0 = OFF
+        let value: UInt8 = isOn ? 1 : 0
+        let data = Data([value])
+
+        // Write data to BLE characteristic
+        peripheral.writeValue(data,
+                              for: characteristic,
+                              type: .withResponse)
+    }
+}
+

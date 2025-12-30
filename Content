@@ -1,0 +1,51 @@
+import SwiftUI
+
+struct ContentView: View {
+    
+    // BLE manager responsible for communication with Arduino
+    @StateObject var bleManager = BluetoothManager()
+    
+    // Local UI state of the LED
+    @State private var isLedOn = false
+
+    var body: some View {
+        VStack(spacing: 40) {
+
+            // App title
+            Text("LED Controller")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+
+            // LED icon that changes depending on state
+            Image(systemName: isLedOn ? "lightbulb.fill" : "lightbulb")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 120, height: 120)
+                .foregroundColor(isLedOn ? .yellow : .gray)
+                .shadow(color: isLedOn ? .yellow : .clear, radius: 20)
+                .animation(.default, value: isLedOn)
+
+            // Button to toggle LED state
+            Button(action: {
+                isLedOn.toggle()
+                bleManager.sendData(isOn: isLedOn)
+            }) {
+                HStack {
+                    Image(systemName: "power")
+                    Text(isLedOn ? "TURN OFF" : "TURN ON")
+                }
+                .font(.title2.bold())
+                .frame(width: 200, height: 60)
+                .background(isLedOn ? Color.red : Color.green)
+                .foregroundColor(.white)
+                .cornerRadius(20)
+            }
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    ContentView()
+}
+

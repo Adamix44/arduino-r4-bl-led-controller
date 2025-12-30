@@ -1,0 +1,17 @@
+//
+//  LedControllerApp.swift
+//  LedController
+//
+//  Created by Adam_Rybacki 
+//
+
+import SwiftUI
+
+@main
+struct LedControllerApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
